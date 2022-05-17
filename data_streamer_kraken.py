@@ -15,10 +15,10 @@ from websocket import WebSocketApp
 
 class KrakenDataStreamer(Thread):
 	ID = "VT_STREAMER_KRAKEN"
+	EXCHANGE = "KRAKEN"
+	MARKET = "SPOT"
 	NAME = "KARKEN data streamer"
 	AUTHOR = "Variance Technologies"
- 
-    
 
 	url = "wss://ws.kraken.com/"
 
@@ -44,8 +44,11 @@ class KrakenDataStreamer(Thread):
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
-		print(msg)
-		self.save_data(float(msg['data']['last']),0)
+		# print(msg)
+		ltp = float(msg[1]['a'][-1][0])
+		qty = float(msg[1]['a'][-1][1])
+		print(ltp, qty)
+		self.save_data(ltp, qty)
 
 	def on_close(self,wsapp,*args) -> None:
 		"""

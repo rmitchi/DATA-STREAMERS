@@ -1,7 +1,7 @@
 # Author - Shantheri
 
 """
-Kraken data streamer
+Kraken futures data streamer
 """
 
 # Importing built-in libraries
@@ -14,11 +14,12 @@ from threading import Thread
 from websocket import WebSocketApp
 
 class KrakenDataStreamer(Thread):
-	ID = "VT_STREAMER_KRAKEN"
+
+	ID = "VT_STREAMER_KRAKEN_FUTURES"
+	EXCHANGE = "KRAKEN"
+	MARKET = "FUTURES"
 	NAME = "KARKEN data streamer"
 	AUTHOR = "Variance Technologies"
- 
-    
 
 	url = "wss://futures.kraken.com/ws/v1"
 
@@ -45,8 +46,11 @@ class KrakenDataStreamer(Thread):
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
-		print(msg)
-		self.save_data(float(msg['data']['last']),0)
+		# print(msg)
+		ltp = float(msg['trades'][-1]['price'])
+		qty = float(msg['trades'][-1]['qty'])
+		# print(ltp, qty)
+		self.save_data(ltp, ltp)
 
 	def on_close(self,wsapp,*args) -> None:
 		"""
