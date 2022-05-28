@@ -48,7 +48,7 @@ class KrakenDataStreamer(Thread):
 		# print(msg)
 		ltp = float(msg[1]['a'][-1][0])
 		qty = float(msg[1]['a'][-1][1])
-		print(ltp, qty)
+		# print(ltp, qty)
 		self.save_data(ltp, qty)
 
 	def on_close(self,wsapp,*args) -> None:
