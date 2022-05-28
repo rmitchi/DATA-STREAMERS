@@ -1,11 +1,11 @@
-# Author - Shantheri
+# Author - Karan Parmar
 
 """
-Kraken data streamer
+Huobi spot data streamer
 """
 
 # Importing built-in libraries
-import json
+import json, gzip
 from threading import Thread
 
 # Importing dependent libraries
@@ -13,14 +13,15 @@ from threading import Thread
 # Importing third-party libraries
 from websocket import WebSocketApp
 
-class KrakenDataStreamer(Thread):
-	ID = "VT_STREAMER_KRAKEN"
-	EXCHANGE = "KRAKEN"
+class HuobiDataStreamer(Thread):
+
+	ID = "VT_STREAMER_HUOBI_SPOT"
+	EXCHANGE = "HUOBI"
 	MARKET = "SPOT"
-	NAME = "KARKEN data streamer"
+	NAME = "Huobi data streamer"
 	AUTHOR = "Variance Technologies"
 
-	url = "wss://ws.kraken.com/"
+	url = "wss://api.huobi.pro/ws/"
 
 	def __init__(self):
 		Thread.__init__(self,daemon=False)
@@ -35,26 +36,36 @@ class KrakenDataStreamer(Thread):
 			on_message=self.on_message,
 			on_close=self.on_close,
 			on_ping=self.on_ping,
-			on_pong=self.on_pong
+			on_pong=self.on_pong,
+			on_error=self.on_error
 		)
 
 	def on_open(self, wsapp) -> None:
-		data ='{"event":"subscribe", "subscription":{"name":"%(feed)s", "depth":%(depth)s}, "pair":["%(symbol)s"]}' % {"feed":"book", "depth":10, "symbol":self.SYMBOL}
-		self.WSAPP.send(data)
+		data = {"sub": f"market.{self.SYMBOL.lower().replace('_','')}.ticker"}
+		self.WSAPP.send(json.dumps(data))
 
 	def on_message(self, wsapp, message) -> None:
-		msg = json.loads(message)
+		msg = json.loads(gzip.decompress(message))
 		# print(msg)
-		ltp = float(msg[1]['a'][-1][0])
-		qty = float(msg[1]['a'][-1][1])
-		print(ltp, qty)
-		self.save_data(ltp, qty)
+		
+		# Sending pong heartbeat
+		if msg.get('ping'): 
+			pong = {"op":"pong","ts":msg['ping']}
+			# print(pong)
+			self.WSAPP.send(json.dumps(pong))
+
+		self.save_data(float(msg['tick']['lastPrice']),float(msg['tick']['lastSize']))
 
 	def on_close(self,wsapp,*args) -> None:
 		"""
 		"""
 		pass
 	
+	def on_error(self, *args) -> None:
+		"""
+		"""
+		pass
+
 	def on_ping(self,*args) -> None:
 		"""
 		"""
@@ -68,7 +79,7 @@ class KrakenDataStreamer(Thread):
 	# Public methods
 	def set_symbol(self, symbol: str) -> None:
 		self.SYMBOL = symbol
-		
+
 	# Thread
 	def run(self):
 		
@@ -79,8 +90,8 @@ class KrakenDataStreamer(Thread):
 
 if __name__ == '__main__':
 
-	symbol = "XBT/USDT"
+	symbol = 'ETH_USDT'
 
-	K1 = KrakenDataStreamer()
-	K1.set_symbol(symbol)
-	K1.start()
+	B1 = HuobiDataStreamer()
+	B1.set_symbol(symbol)
+	B1.start()

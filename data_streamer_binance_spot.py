@@ -1,7 +1,7 @@
 # Author - Karan Parmar
 
 """
-FTX data streamer
+Binance spot data streamer
 """
 
 # Importing built-in libraries
@@ -11,17 +11,17 @@ from threading import Thread
 # Importing dependent libraries
 
 # Importing third-party libraries
-from websocket import WebSocketApp
+from websocket import WebSocketApp 		# pip install websocket-client
 
-class FTXDataStreamer(Thread):
+class BinanceDataStreamer(Thread):
 
-	ID = "VT_STREAMER_FTX"
-	EXCHANGE = "FTX"
+	ID = "VT_STREAMER_BINANCE_SPOT"
+	EXCHANGE = "BINANCE"
 	MARKET = "SPOT"
-	NAME = "FTX data streamer"
+	NAME = "Binance data streamer"
 	AUTHOR = "Variance Technologies"
 
-	url = "wss://ftx.com/ws/"
+	url = "wss://stream.binance.com:9443/ws/"
 
 	def __init__(self):
 		Thread.__init__(self,daemon=False)
@@ -39,14 +39,15 @@ class FTXDataStreamer(Thread):
 			on_pong=self.on_pong
 		)
 
-	def on_open(self, wsapp) -> None:
-		data = {'op': 'subscribe', 'channel': 'ticker', 'market': self.SYMBOL.replace("_",'/')}
-		self.WSAPP.send(json.dumps(data))
+	def on_open(self,wsapp) -> None:
+		"""
+		"""
+		pass
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
 		# print(msg)
-		self.save_data(float(msg['data']['last']),0)
+		self.save_data(float(msg['p']),float(msg['q']))
 
 	def on_close(self,wsapp,*args) -> None:
 		"""
@@ -66,6 +67,7 @@ class FTXDataStreamer(Thread):
 	# Public methods
 	def set_symbol(self, symbol: str) -> None:
 		self.SYMBOL = symbol
+		self.url = self.url + symbol.replace('_','').lower() + '@trade'
 		
 	# Thread
 	def run(self):
@@ -79,6 +81,6 @@ if __name__ == '__main__':
 
 	symbol = 'ETH_USDT'
 
-	B1 = FTXDataStreamer()
+	B1 = BinanceDataStreamer()
 	B1.set_symbol(symbol)
 	B1.start()

@@ -1,7 +1,7 @@
-# Author - Karan Parmar
+# Author - Shantheri
 
 """
-Binance data streamer
+Kraken spot data streamer
 """
 
 # Importing built-in libraries
@@ -11,17 +11,17 @@ from threading import Thread
 # Importing dependent libraries
 
 # Importing third-party libraries
-from websocket import WebSocketApp 		# pip install websocket-client
+from websocket import WebSocketApp
 
-class BinanceDataStreamer(Thread):
-
-	ID = "VT_STREAMER_BINANCE"
-	EXCHANGE = "BINANCE"
+class KrakenDataStreamer(Thread):
+	
+	ID = "VT_STREAMER_KRAKEN_SPOT"
+	EXCHANGE = "KRAKEN"
 	MARKET = "SPOT"
-	NAME = "Binance data streamer"
+	NAME = "KARKEN data streamer"
 	AUTHOR = "Variance Technologies"
 
-	url = "wss://stream.binance.com:9443/ws/"
+	url = "wss://ws.kraken.com/"
 
 	def __init__(self):
 		Thread.__init__(self,daemon=False)
@@ -39,15 +39,17 @@ class BinanceDataStreamer(Thread):
 			on_pong=self.on_pong
 		)
 
-	def on_open(self,wsapp) -> None:
-		"""
-		"""
-		pass
+	def on_open(self, wsapp) -> None:
+		data ='{"event":"subscribe", "subscription":{"name":"%(feed)s", "depth":%(depth)s}, "pair":["%(symbol)s"]}' % {"feed":"book", "depth":10, "symbol":self.SYMBOL}
+		self.WSAPP.send(data)
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
 		# print(msg)
-		self.save_data(float(msg['p']),float(msg['q']))
+		ltp = float(msg[1]['a'][-1][0])
+		qty = float(msg[1]['a'][-1][1])
+		print(ltp, qty)
+		self.save_data(ltp, qty)
 
 	def on_close(self,wsapp,*args) -> None:
 		"""
@@ -67,7 +69,6 @@ class BinanceDataStreamer(Thread):
 	# Public methods
 	def set_symbol(self, symbol: str) -> None:
 		self.SYMBOL = symbol
-		self.url = self.url + symbol.replace('_','').lower() + '@trade'
 		
 	# Thread
 	def run(self):
@@ -79,8 +80,8 @@ class BinanceDataStreamer(Thread):
 
 if __name__ == '__main__':
 
-	symbol = 'ETH_USDT'
+	symbol = "XBT/USDT"
 
-	B1 = BinanceDataStreamer()
-	B1.set_symbol(symbol)
-	B1.start()
+	K1 = KrakenDataStreamer()
+	K1.set_symbol(symbol)
+	K1.start()
