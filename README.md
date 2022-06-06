@@ -1,6 +1,6 @@
 # DATA-STREAMERS
 
-## Streamers
+## Data Streamers
 - BINANCE
 - FTX
 - HUOBI

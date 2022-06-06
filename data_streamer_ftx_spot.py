@@ -13,7 +13,7 @@ from threading import Thread
 # Importing third-party libraries
 from websocket import WebSocketApp
 
-class FTXDataStreamer(Thread):
+class FTXDataStreamerSpot(Thread):
 
 	ID = "VT_STREAMER_FTX_SPOT"
 	EXCHANGE = "FTX"
@@ -21,17 +21,27 @@ class FTXDataStreamer(Thread):
 	NAME = "FTX data streamer"
 	AUTHOR = "Variance Technologies"
 
-	url = "wss://ftx.com/ws/"
+	BASE_URL = "wss://ftx.com/ws/"
+
+	_is_connected = False
+	_subscriptions = []
 
 	def __init__(self):
 		Thread.__init__(self,daemon=False)
+
+	@staticmethod
+	def _filter_symbol(symbol:str) -> str:
+		"""
+		Filter dashed seperated symbol to appropriate ticker\n
+		"""
+		return symbol.replace('_','/').upper()
 		
 	def create_websocket_app(self) -> None:
 		"""
 		Creates websocket app\n
 		"""
 		self.WSAPP = WebSocketApp(
-			self.url,
+			self.BASE_URL,
 			on_open=self.on_open,
 			on_message=self.on_message,
 			on_close=self.on_close,
@@ -40,13 +50,21 @@ class FTXDataStreamer(Thread):
 		)
 
 	def on_open(self, wsapp) -> None:
-		data = {'op': 'subscribe', 'channel': 'ticker', 'market': self.SYMBOL.replace("_",'/')}
-		self.WSAPP.send(json.dumps(data))
+		"""
+		Call on websocket open\n
+		"""
+		self._is_connected = True
+		self._initialize_subscription()
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
 		# print(msg)
-		self.save_data(float(msg['data']['last']),0)
+
+		symbol = msg['market']
+		ltp = float(msg['data'][-1]['price'])
+		qty = float(msg['data'][-1]['size'])
+
+		self.save_data(symbol, ltp, qty)
 
 	def on_close(self,wsapp,*args) -> None:
 		"""
@@ -63,9 +81,44 @@ class FTXDataStreamer(Thread):
 		"""
 		pass
 
+	def _initialize_subscription(self) -> None:
+		"""
+		Initialize subscription to all required tickers\n
+		"""
+		for ticker in self._subscriptions:
+			_ = {'op': 'subscribe', 'channel': 'trades', 'market': ticker}	
+			self.WSAPP.send(json.dumps(_))
+
 	# Public methods
-	def set_symbol(self, symbol: str) -> None:
-		self.SYMBOL = symbol
+	def subscribe(self, symbol:str) -> None:
+		"""
+		Subscribe to SPOT ticker\n
+		"""
+		ticker = self._filter_symbol(symbol)
+		if ticker not in self._subscriptions:
+			self._subscriptions.append(ticker)
+
+	def unsubscribe(self, symbol:str) -> None:
+		"""
+		Unsubscribe to SPOT ticker\n
+		"""
+		ticker = self._filter_symbol(symbol)
+		if ticker in self._subscriptions:
+			_ = {'op': 'unsubscribe', 'channel': 'trades', 'market': ticker}	
+			self.WSAPP.send(json.dumps(_))
+			self._subscriptions.remove(ticker)
+
+	def get_connection_status(self) -> bool:
+		"""
+		Get socket connection status\n
+		"""
+		return self._is_connected
+	
+	def get_no_of_active_subscriptions(self) -> int:
+		"""
+		Returns no of active subscriptions by the socket\n
+		"""
+		return len(self._subscriptions)
 		
 	# Thread
 	def run(self):
@@ -75,10 +128,17 @@ class FTXDataStreamer(Thread):
 
 			self.WSAPP.run_forever()
 
+			self._is_connected = False
+
 if __name__ == '__main__':
 
-	symbol = 'ETH_USDT'
+	S1 = FTXDataStreamerSpot()
+	S1.start()
 
-	B1 = FTXDataStreamer()
-	B1.set_symbol(symbol)
-	B1.start()
+	import time
+
+	S1.subscribe(symbol="BTC_USDT")
+	S1.subscribe(symbol="ETH_USDT")
+
+	time.sleep(15)
+	S1.unsubscribe(symbol="BTC_USDT")

@@ -13,7 +13,7 @@ from threading import Thread
 # Importing third-party libraries
 from websocket import WebSocketApp
 
-class KrakenDataStreamer(Thread):
+class KrakenDataStreamerSpot(Thread):
 	
 	ID = "VT_STREAMER_KRAKEN_SPOT"
 	EXCHANGE = "KRAKEN"
@@ -21,17 +21,27 @@ class KrakenDataStreamer(Thread):
 	NAME = "KARKEN data streamer"
 	AUTHOR = "Variance Technologies"
 
-	url = "wss://ws.kraken.com/"
+	BASE_URL = "wss://ws.kraken.com/"
+
+	_is_connected = False
+	_subscriptions = []
 
 	def __init__(self):
 		Thread.__init__(self,daemon=False)
+
+	@staticmethod
+	def _filter_symbol(symbol:str) -> str:
+		"""
+		Filter dashed seperated symbol to appropriate ticker\n
+		"""
+		return symbol.replace('_','/').upper()
 		
 	def create_websocket_app(self) -> None:
 		"""
 		Creates websocket app\n
 		"""
 		self.WSAPP = WebSocketApp(
-			self.url,
+			self.BASE_URL,
 			on_open=self.on_open,
 			on_message=self.on_message,
 			on_close=self.on_close,
@@ -40,35 +50,89 @@ class KrakenDataStreamer(Thread):
 		)
 
 	def on_open(self, wsapp) -> None:
-		data ='{"event":"subscribe", "subscription":{"name":"%(feed)s", "depth":%(depth)s}, "pair":["%(symbol)s"]}' % {"feed":"book", "depth":10, "symbol":self.SYMBOL}
-		self.WSAPP.send(data)
+		"""
+		Call on websocket open
+		"""
+		self._is_connected = True
+		self._initialize_subscription()
 
 	def on_message(self, wsapp, message) -> None:
 		msg = json.loads(message)
 		# print(msg)
+
+		symbol = msg[1]['ticker']
 		ltp = float(msg[1]['a'][-1][0])
 		qty = float(msg[1]['a'][-1][1])
-		# print(ltp, qty)
-		self.save_data(ltp, qty)
+		# print(symbol, ltp, qty)
+		self.save_data(symbol, ltp, qty)
 
-	def on_close(self,wsapp,*args) -> None:
+	def on_close(self, wsapp, *args) -> None:
 		"""
 		"""
 		pass
 	
-	def on_ping(self,*args) -> None:
+	def on_ping(self, *args) -> None:
 		"""
 		"""
 		pass
 
-	def on_pong(self,*args) -> None:
+	def on_pong(self, *args) -> None:
 		"""
 		"""
 		pass
+
+	def _initialize_subscription(self) -> None:
+		"""
+		Initialize subscription to all required tickers\n
+		"""
+		for ticker in self._subscriptions:
+			_ = {
+					"event":"subscribe",
+					"pair":[ticker], 
+					"subscription":
+					{
+						"name":"ticker"
+					}
+				}
+			self.WSAPP.send(json.dumps(_))
 
 	# Public methods
-	def set_symbol(self, symbol: str) -> None:
-		self.SYMBOL = symbol
+	def subscribe(self, symbol:str) -> None:
+		"""
+		Subscribe to SPOT ticker\n
+		"""
+		ticker = self._filter_symbol(symbol)
+		if ticker not in self._subscriptions:
+			self._subscriptions.append(ticker)
+
+	def unsubscribe(self, symbol:str) -> None:
+		"""
+		Unsubscribe to SPOT ticker\n
+		"""
+		ticker = self._filter_symbol(symbol)
+		if ticker in self._subscriptions:
+			_ = {
+				"event":"unsubscribe",
+				"pair":[ticker], 
+				"subscription":
+				{
+					"name":"ticker"
+				}
+			}
+			self.WSAPP.send(json.dumps(_))
+			self._subscriptions.remove(ticker)
+
+	def get_connection_status(self) -> bool:
+		"""
+		Get socket connection status\n
+		"""
+		return self._is_connected
+	
+	def get_no_of_active_subscriptions(self) -> int:
+		"""
+		Returns no of active subscriptions by the socket\n
+		"""
+		return len(self._subscriptions)
 		
 	# Thread
 	def run(self):
@@ -78,10 +142,17 @@ class KrakenDataStreamer(Thread):
 
 			self.WSAPP.run_forever()
 
+			self._is_connected = False
+
 if __name__ == '__main__':
 
-	symbol = "XBT/USDT"
+	S1 = KrakenDataStreamerSpot()
+	S1.start()
 
-	K1 = KrakenDataStreamer()
-	K1.set_symbol(symbol)
-	K1.start()
+	S1.subscribe(symbol="XBT_USDT")
+	S1.subscribe(symbol="ETH_USDT")
+
+	import time
+
+	time.sleep(5)
+	S1.unsubscribe(symbol="XBT_USDT")
